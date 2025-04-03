@@ -1,0 +1,4 @@
+class_names:
+dict_keys(['BulkCarrier', 'CargoShip', 'ContainerShip', 'CornerReflector', 'Fishing', 'Tanker'])
+class_names_idx:
+{'BulkCarrier': 0, 'CargoShip': 1, 'ContainerShip': 2, 'CornerReflector': 3, 'Fishing': 4, 'Tanker': 5}

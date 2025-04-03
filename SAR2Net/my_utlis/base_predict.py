@@ -3,25 +3,23 @@
 """
 import torch
 from torchvision import transforms
-from my_utlis.my_dataset import MyDatasetGenerator
+from my_utlis.netTools import MyDatasetGenerator
 from my_utlis.netTools import predict_label
-from my_module.resnet_cifar10_3x32x32 import resnet20, resnet32, resnet44, resnet56
+from my_modules.ResNet_1x128x128 import resnet20, resnet32, resnet44, resnet56
 
 batch_size = 6  # 一次展示的图片个数
 net = resnet20()
-val_data_path = 'data/cifar10-images-32x32/test'
-weight_path = 'logs/resnet20-32x32-npy/logs_20250401_171304/weight_save/net_weight_epoch99_valAcc_0.87840'
-text_labels = ['airplane', 'automobile', 'bird', 'cat', 'deer',
-               'dog', 'frog', 'horse', 'ship', 'truck']  # CIFAR-10 的标签
-
+val_data_path = ''  # data/fashion-mnist-img1x128x128/test
+weight_path = ''
+# text_labels = ['T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat', 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+text_labels = []
+text_labels = sorted(text_labels)
 test_transforms = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transforms.Normalize(mean=[0.5], std=[0.5])
 ])
 val_data = MyDatasetGenerator(root_dir=val_data_path, transform=test_transforms)
 val_iter = torch.utils.data.DataLoader(val_data, batch_size, shuffle=True)
-
-# 加载预训练的模型权重
 net.load_state_dict(torch.load(weight_path, weights_only=True))
 net.eval()
 if __name__ == '__main__':

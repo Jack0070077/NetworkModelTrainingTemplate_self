@@ -1,8 +1,3 @@
-"""
-小规模网络训练模板,使用打包成npy文件的数据集加速训练
-1.先读取图片数据集,调用generate_NPY_files函数打包成npy文件,加速dataloader的读取
-2.在DataLoader中调用transforms进行数据增强
-"""
 import torch
 import os
 import numpy as np
@@ -10,37 +5,38 @@ import datetime
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 from my_utlis.netTools import Animator111, init_weight, train, save_info
-from my_utlis.my_dataset import generate_NPY_files, my_collate_fn
-from my_module.resnet_cifar10_3x32x32 import resnet20, resnet32, resnet44, resnet56
+from my_utlis.netTools import generate_NPY_files, my_collate_fn
+from my_modules.ResNet_1x128x128 import resnet20,resnet32
 
 # -------------------------------------------- Params Setting -------------------------------------------------- #
 batch_size = 64
-lr = 7e-4
+lr = 1e-3
 l2_alpha = 5e-2
 EPOCH, start_epoch, is_pretrained = 100, 0, False
 net = resnet20()
-log_name = 'resnet20-32x32-npy'
-data_path = './data/cifar10-images-32x32'
+log_name = 'resnet-6classes'  # resnet20-32x32-npy
+data_path = 'data/split_data'  # ./data/cifar10-images-32x32
 weight_dir = ''
 
 train_transforms = transforms.Compose([  # 训练数据增强
     # transforms.ToTensor(),  # 转化为tensor类型
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    transforms.RandomHorizontalFlip(),  # 随机水平镜像
-    transforms.RandomErasing(scale=(0.04, 0.2), ratio=(0.5, 2)),  # 随机遮挡
-    transforms.RandomCrop(size=32, padding=4),  # 随机裁剪
-    transforms.RandomRotation(15),  # 随机旋转
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # 颜色抖动
+    # transforms.Normalize(mean=[0.5], std=[0.5]),
+    # transforms.RandomHorizontalFlip(),  # 随机水平镜像
+    # transforms.RandomErasing(scale=(0.04, 0.2), ratio=(0.5, 2)),  # 随机遮挡
+    # transforms.RandomCrop(size=128, padding=16),  # 随机裁剪
+    # transforms.RandomRotation(15),  # 随机旋转
+    # transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # 颜色抖动
 ])
 test_transforms = transforms.Compose([  # 测试数据增强
     # transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    # transforms.Normalize(mean=[0.5], std=[0.5]),
 ])
 # optim_fn = torch.optim.SGD(net.parameters(), lr, weight_decay=l2_alpha, momentum=0.9)  # 随机梯度下降
 optim_fn = torch.optim.AdamW(net.parameters(), lr=lr, weight_decay=l2_alpha, betas=(0.9, 0.999))  # AdamW 优化器
-
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optim_fn, T_max=EPOCH, eta_min=0.001 * lr, last_epoch=start_epoch - 1)  # 余弦退火
-# scheduler = torch.optim.lr_scheduler.MultiStepLR(optim_fn, milestones=[45, 60, 80], last_epoch=start_epoch - 1)# 里程碑衰减
+for param_group in optim_fn.param_groups:
+    param_group.setdefault('initial_lr', lr)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optim_fn, T_max=EPOCH, eta_min=0.001 * lr, last_epoch=start_epoch - 1)  # 余弦退火
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optim_fn, milestones=[35, 50, 70], last_epoch=start_epoch - 1)# 里程碑衰减
 # scheduler = None
 loss_fn = torch.nn.CrossEntropyLoss(label_smoothing=0.1)  # 交叉熵
 
@@ -51,12 +47,12 @@ print()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if is_pretrained:
     print(f'load weights from:{weight_dir}')
-    net.load_state_dict(torch.load(weight_dir, map_location=device))
+    net.load_state_dict(torch.load(weight_dir, map_location=device, weights_only=True))
 else:
     net.apply(init_weight)
 os.makedirs(
-    name=os.path.join('logs', log_name, f'logs_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'), exist_ok=True)
-logs_root = os.path.join('logs', log_name, f'logs_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}')
+    name=os.path.join('./logs', log_name, f'logs_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'), exist_ok=True)
+logs_root = os.path.join('./logs', log_name, f'logs_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}')
 os.makedirs(name=os.path.join(logs_root, 'log_files'), exist_ok=True)
 writer = SummaryWriter(log_dir=os.path.join(logs_root, 'log_files'))
 
@@ -66,7 +62,7 @@ train_targets_path = os.path.join(data_npy_path, 'train_targets.npy')
 val_features_path = os.path.join(data_npy_path, 'val_features.npy')
 val_targets_path = os.path.join(data_npy_path, 'val_targets.npy')
 
-animator = Animator111(xlabel='epoch', xlim=[0, EPOCH], nrows=1, ncols=2, figsize=(5.5, 3.7),
+animator = Animator111(xlabel='epoch', xlim=[start_epoch, start_epoch + EPOCH], nrows=1, ncols=2, figsize=(5.5, 3.7),
                        legend=[['train_loss', 'val_loss'], ['train_acc', 'val_acc']],
                        save_dir=os.path.join(logs_root, 'fig_save'), fmts=['-o'], markersizes=[4, 4, 4, 4])
 print(f'# ------------------------------------------------------------------------------ #\n'
